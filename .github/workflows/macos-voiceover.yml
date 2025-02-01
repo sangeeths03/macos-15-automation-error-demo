@@ -1,0 +1,53 @@
+name: MacOS VoiceOver
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  start-voiceover-and-move-right:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        os: [macos-13, macos-14, macos-15]
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          # Disable splash screen
+          defaults write com.apple.VoiceOverTraining doNotShowSplashScreen -bool true
+
+          sleep 1
+
+          # Start VoiceOver
+          /System/Library/CoreServices/VoiceOver.app/Contents/MacOS/VoiceOverStarter &
+
+          # See if VoiceOver process is running
+          ps aux | egrep "[V]oiceOver"
+
+          # See if AppleScript thinks VoiceOver is running
+          /usr/bin/osascript voiceOverRunning.applescript
+          
+          sleep 1
+
+          # Use AppleScript to "activate" VoiceOver
+          until $(/usr/bin/osascript voiceOverActivate.applescript)
+          do
+            echo "VO not ready..."
+            sleep 1
+          done
+          echo "VO ready."
+
+          # Attempt to control VoiceOver using AppleScript
+          until $(/usr/bin/osascript voiceOverPerform.applescript)
+          do
+            echo "Failed to perform AppleScript, retrying..."
+            sleep 1
+          done
+
+          echo "Complete."
+
+          # Terminate VoiceOver
+          kill -15 $(ps aux | egrep "[V]oiceOver.app/Contents/MacOS/VoiceOver launchd -s" | awk '{print $2}')
